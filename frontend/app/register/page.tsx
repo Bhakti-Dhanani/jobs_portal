@@ -48,17 +48,17 @@ const Register = () => {
       <div className="bg-white p-6 rounded-lg shadow-lg w-96">
         {!role ? (
           <>
-            <h2 className="text-xl font-bold mb-4 text-center text-black">Select Role</h2>
+            <h2 className="text-xl font-bold mb-4 text-center text-gray-800">Select Role</h2>
             <div className="flex justify-between">
               <button
                 onClick={() => handleRoleSelection("Employer")}
-                className="w-1/2 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 mr-2"
+                className="w-1/2 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 mr-2 font-medium"
               >
                 Employer
               </button>
               <button
-                onClick={() => handleRoleSelection("Job Seeker")}
-                className="w-1/2 bg-green-500 text-white p-2 rounded hover:bg-green-600"
+                onClick={() => handleRoleSelection("JobSeeker")}
+                className="w-1/2 bg-green-500 text-white p-2 rounded hover:bg-green-600 font-medium"
               >
                 Job Seeker
               </button>
@@ -66,14 +66,14 @@ const Register = () => {
           </>
         ) : (
           <form onSubmit={handleSubmit}>
-            <h2 className="text-xl font-bold mb-4 text-center text-black">Register as {role}</h2>
+            <h2 className="text-xl font-bold mb-4 text-center text-gray-800">Register as {role}</h2>
             <input
               type="text"
               name="username"
               placeholder="Username"
               value={form.username}
               onChange={handleChange}
-              className="w-full p-2 border rounded mb-3"
+              className="w-full p-2 border rounded mb-3 text-gray-800 placeholder-gray-500"
               required
             />
             <input
@@ -82,7 +82,7 @@ const Register = () => {
               placeholder="Email"
               value={form.email}
               onChange={handleChange}
-              className="w-full p-2 border rounded mb-3"
+              className="w-full p-2 border rounded mb-3 text-gray-800 placeholder-gray-500"
               required
             />
             <input
@@ -91,14 +91,32 @@ const Register = () => {
               placeholder="Password"
               value={form.password}
               onChange={handleChange}
-              className="w-full p-2 border rounded mb-3"
+              className="w-full p-2 border rounded mb-3 text-gray-800 placeholder-gray-500"
               required
             />
-            <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+            <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 font-medium">
               Register
             </button>
+            
+            <div className="mt-3 text-center">
+              <button 
+                type="button" 
+                onClick={() => setRole(null)}
+                className="text-blue-500 hover:underline text-sm"
+              >
+                Back to Role Selection
+              </button>
+            </div>
           </form>
         )}
+        
+        {/* Login Link */}
+        <p className="text-center mt-3 text-gray-700">
+          Already have an account?{" "}
+          <a href="/login" className="text-blue-500 hover:underline">
+            Login Here
+          </a>
+        </p>
       </div>
     </div>
   );
