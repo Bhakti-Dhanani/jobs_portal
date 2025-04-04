@@ -22,5 +22,27 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Ensure form inputs have proper text color */
+input, textarea, select {
+  color: #171717;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Ensure buttons have proper text color */
+button {
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Ensure links have proper text color */
+a {
+  color: #3b82f6;
+}
+
+/* Ensure headings have proper text color */
+h1, h2, h3, h4, h5, h6 {
+  color: #171717;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }

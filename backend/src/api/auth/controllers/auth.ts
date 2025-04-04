@@ -50,7 +50,9 @@ export default factories.createCoreController('api::auth.auth', ({ strapi }) => 
         filters: { email },
       });
       
-      if (existingUsers.length > 0) {
+      const existingUsersArray = Array.isArray(existingUsers) ? existingUsers : [existingUsers];
+      
+      if (existingUsersArray.length > 0) {
         console.log('Email already taken:', email);
         return ctx.badRequest("Email already taken");
       }

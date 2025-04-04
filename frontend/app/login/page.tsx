@@ -32,7 +32,15 @@ const Login = () => {
         localStorage.setItem('role', data.role);
         
         alert("Login successful!");
-        router.push("/dashboard"); // Redirect to dashboard after login
+        
+        // Redirect to the appropriate dashboard based on role
+        if (data.role === "Employer") {
+          router.push("/dashboard/employer");
+        } else if (data.role === "JobSeeker") {
+          router.push("/dashboard/jobseeker");
+        } else {
+          router.push("/dashboard");
+        }
       } else {
         console.error('Login failed:', data);
         alert(data.error?.message || data.message || "Login failed! Check your credentials.");
@@ -46,14 +54,14 @@ const Login = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-lg w-96">
-        <h2 className="text-xl font-bold mb-4 text-center text-black">Login</h2>
+        <h2 className="text-xl font-bold mb-4 text-center text-gray-800">Login</h2>
         <input
           type="text"
           name="identifier"
           placeholder="Email or Username"
           value={form.identifier}
           onChange={handleChange}
-          className="w-full p-2 border rounded mb-3"
+          className="w-full p-2 border rounded mb-3 text-gray-800 placeholder-gray-500"
           required
         />
         <input
@@ -62,15 +70,15 @@ const Login = () => {
           placeholder="Password"
           value={form.password}
           onChange={handleChange}
-          className="w-full p-2 border rounded mb-3"
+          className="w-full p-2 border rounded mb-3 text-gray-800 placeholder-gray-500"
           required
         />
-        <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+        <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 font-medium">
           Login
         </button>
 
         {/* Register Link */}
-        <p className="text-center mt-3 text-black">
+        <p className="text-center mt-3 text-gray-700">
           Don't have an account?{" "}
           <a href="/register" className="text-blue-500 hover:underline">
             Register Here

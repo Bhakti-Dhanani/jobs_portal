@@ -42,7 +42,7 @@
     "applications": {
       "type": "relation",
       "relation": "oneToMany",
-      "target": "api::application.application",
+      "target": "api::job-application.job-application",
       "mappedBy": "job"
     },
     "employer": {

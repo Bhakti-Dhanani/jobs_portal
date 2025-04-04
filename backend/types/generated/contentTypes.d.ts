@@ -369,46 +369,6 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
   };
 }
 
-export interface ApiApplicationApplication extends Struct.CollectionTypeSchema {
-  collectionName: 'applications';
-  info: {
-    description: '';
-    displayName: 'Application';
-    pluralName: 'applications';
-    singularName: 'application';
-  };
-  options: {
-    draftAndPublish: true;
-  };
-  attributes: {
-    app_status: Schema.Attribute.Enumeration<
-      ['pending', 'reviewed', 'accepted', 'rejected']
-    > &
-      Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<'pending'>;
-    applicant: Schema.Attribute.Relation<
-      'manyToOne',
-      'plugin::users-permissions.user'
-    >;
-    coverLetter: Schema.Attribute.String & Schema.Attribute.Required;
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    job: Schema.Attribute.Relation<'manyToOne', 'api::job.job'>;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::application.application'
-    > &
-      Schema.Attribute.Private;
-    publishedAt: Schema.Attribute.DateTime;
-    resume: Schema.Attribute.Media<'files', true> & Schema.Attribute.Required;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
 export interface ApiAuthAuth extends Struct.CollectionTypeSchema {
   collectionName: 'auths';
   info: {
@@ -483,7 +443,7 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
   attributes: {
     applications: Schema.Attribute.Relation<
       'oneToMany',
-      'api::application.application'
+      'api::job-application.job-application'
     >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1021,7 +981,6 @@ declare module '@strapi/strapi' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
-      'api::application.application': ApiApplicationApplication;
       'api::auth.auth': ApiAuthAuth;
       'api::employer.employer': ApiEmployerEmployer;
       'api::job.job': ApiJobJob;
