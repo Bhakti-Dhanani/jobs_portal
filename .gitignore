@@ -1,0 +1,51 @@
+# Node modules
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Build directories
+.next/
+.build/
+dist/
+
+# .env files
+.env
+.env.*.local
+.env.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Strapi specific
+public/uploads/
+
+# Optional: ignore SQLite DBs (if used in dev)
+*.sqlite
+*.db
+
+# Optional: pm2 logs
+pmlogs/
+
+# Vercel deployment
+.vercel/
+
+# Local development
+.cache/
+.tmp/
+
+# IDE files
+.vscode/
+.idea/
+
