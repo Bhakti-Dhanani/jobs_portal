@@ -66,7 +66,7 @@ const Register = () => {
           </>
         ) : (
           <form onSubmit={handleSubmit}>
-            <h2 className="text-xl font-bold mb-4 text-center text-gray-800">Register as {role}</h2>
+            <h2 className="text-xl font-bold mb-4 text-center text-gray-800">Register as {role === 'JobSeeker' ? 'Job Seeker' : 'Employer'}</h2>
             <input
               type="text"
               name="username"
@@ -98,15 +98,13 @@ const Register = () => {
               Register
             </button>
             
-            <div className="mt-3 text-center">
-              <button 
-                type="button" 
-                onClick={() => setRole(null)}
-                className="text-blue-500 hover:underline text-sm"
-              >
-                Back to Role Selection
-              </button>
-            </div>
+            <button 
+              type="button" 
+              onClick={() => setRole(null)} 
+              className="w-full mt-2 bg-gray-300 text-gray-800 p-2 rounded hover:bg-gray-400 font-medium"
+            >
+              Back
+            </button>
           </form>
         )}
         

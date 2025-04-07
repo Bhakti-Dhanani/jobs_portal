@@ -1,0 +1,45 @@
+{
+  "kind": "collectionType",
+  "collectionName": "jobseeker_profiles",
+  "info": {
+    "singularName": "jobseeker-profile",
+    "pluralName": "jobseeker-profiles",
+    "displayName": "Jobseeker Profile",
+    "description": "Profile information for jobseekers"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "firstName": {
+      "type": "string",
+      "required": true
+    },
+    "lastName": {
+      "type": "string",
+      "required": true
+    },
+    "phone": {
+      "type": "string",
+      "required": true
+    },
+    "skills": {
+      "type": "json",
+      "required": true
+    },
+    "experience": {
+      "type": "text",
+      "required": true
+    },
+    "education": {
+      "type": "text",
+      "required": true
+    },
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "jobseekerProfile"
+    }
+  }
+} 

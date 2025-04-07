@@ -4,7 +4,8 @@
   "info": {
     "singularName": "employer",
     "pluralName": "employers",
-    "displayName": "Employer"
+    "displayName": "Employer",
+    "description": "Employer profiles"
   },
   "options": {
     "draftAndPublish": true
@@ -18,15 +19,17 @@
       "type": "string",
       "required": true
     },
-    "location": {
-      "type": "string",
-      "required": true
+    "description": {
+      "type": "text"
+    },
+    "website": {
+      "type": "string"
     },
     "user": {
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user",
-      "mappedBy": "employer"
+      "inversedBy": "employer"
     },
     "jobs": {
       "type": "relation",
@@ -35,4 +38,4 @@
       "mappedBy": "employer"
     }
   }
-}
+} 

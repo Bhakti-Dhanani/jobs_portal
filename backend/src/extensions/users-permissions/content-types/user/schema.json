@@ -71,11 +71,23 @@
       "target": "api::application.application",
       "mappedBy": "applicant"
     },
+    "jobs": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::job.job",
+      "mappedBy": "user"
+    },
     "employer": {
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::employer.employer",
-      "inversedBy": "user"
+      "mappedBy": "user"
+    },
+    "jobseekerProfile": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::jobseeker-profile.jobseeker-profile",
+      "mappedBy": "user"
     }
   }
 }
