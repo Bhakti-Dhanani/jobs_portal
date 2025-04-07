@@ -4,8 +4,8 @@
   "info": {
     "singularName": "job",
     "pluralName": "jobs",
-    "displayName": "job",
-    "description": ""
+    "displayName": "Job",
+    "description": "Job listings posted by employers"
   },
   "options": {
     "draftAndPublish": true
@@ -16,11 +16,16 @@
       "required": true
     },
     "description": {
-      "type": "blocks",
+      "type": "text",
+      "required": true
+    },
+    "requirements": {
+      "type": "text",
       "required": true
     },
     "salary": {
-      "type": "integer"
+      "type": "integer",
+      "required": true
     },
     "location": {
       "type": "string",
@@ -31,8 +36,28 @@
       "enum": [
         "full-time",
         "part-time",
-        "contract"
+        "contract",
+        "internship"
       ],
+      "required": true
+    },
+    "experienceLevel": {
+      "type": "enumeration",
+      "enum": [
+        "entry",
+        "mid",
+        "senior",
+        "lead",
+        "executive"
+      ],
+      "required": true
+    },
+    "companyName": {
+      "type": "string",
+      "required": true
+    },
+    "industry": {
+      "type": "string",
       "required": true
     },
     "expiredAt": {
@@ -42,8 +67,14 @@
     "applications": {
       "type": "relation",
       "relation": "oneToMany",
-      "target": "api::job-application.job-application",
+      "target": "api::application.application",
       "mappedBy": "job"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "jobs"
     },
     "employer": {
       "type": "relation",

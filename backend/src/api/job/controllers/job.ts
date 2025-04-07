@@ -13,13 +13,16 @@ interface JobData {
   requirements: string;
   salary: string;
   location: string;
-  type: 'full-time' | 'part-time' | 'contract' | 'internship';
-  status: 'open' | 'closed';
+  jobType: 'full-time' | 'part-time' | 'contract' | 'internship';
+  experienceLevel: 'entry' | 'mid' | 'senior' | 'lead' | 'executive';
+  companyName: string;
+  industry: string;
+  expiredAt: string;
 }
 
 // Define the query interface
 interface QueryFilters {
-  employer?: number;
+  user?: number;
   [key: string]: any;
 }
 
@@ -43,11 +46,14 @@ interface JobAttributes {
   title: string;
   description: string;
   requirements: string;
-  salary: string;
+  salary: number;
   location: string;
-  type: string;
-  status: string;
-  employer: {
+  jobType: string;
+  experienceLevel: string;
+  companyName: string;
+  industry: string;
+  expiredAt: string;
+  user: {
     data: {
       id: number;
       attributes: any;
@@ -58,188 +64,244 @@ interface JobAttributes {
   publishedAt: string;
 }
 
-export default factories.createCoreController('api::job.job', ({ strapi }) => ({
-  async create(ctx: JobContext) {
-    // Get the user from the request
-    const user = ctx.state.user;
-    
-    if (!user) {
-      return ctx.unauthorized('You must be logged in to create a job');
-    }
+// Define the job entity with user relationship
+interface JobEntity {
+  id: number;
+  attributes: JobAttributes;
+  user?: {
+    id: number;
+    attributes: any;
+  };
+}
 
-    // Get the user's role
-    const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
-      populate: ['users'],
-    });
-
-    // Check if the user is an employer
-    if (userRole.name !== 'Employer') {
-      return ctx.forbidden('Only employers can create jobs');
-    }
-
-    // Structure the data properly for Strapi
-    const jobData = {
-      data: {
-        title: ctx.request.body.title,
-        description: ctx.request.body.description,
-        requirements: ctx.request.body.requirements,
-        salary: ctx.request.body.salary,
-        location: ctx.request.body.location,
-        type: ctx.request.body.type,
-        status: ctx.request.body.status,
-        employer: user.id,
-        publishedAt: new Date(),
-        expiredAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        jobType: ctx.request.body.type,
-      }
-    };
-
-    // Create the job
-    const entity = await strapi.entityService.create('api::job.job', jobData);
-
-    // Return the created job
-    return this.transformResponse(entity);
-  },
-
+// Use type assertion to fix the TypeScript error
+export default factories.createCoreController('api::job.job' as any, ({ strapi }) => ({
   async find(ctx: JobContext) {
-    // Get the user from the request
-    const user = ctx.state.user;
-    
-    if (!user) {
-      return ctx.unauthorized('You must be logged in to view jobs');
-    }
-
-    // Get the user's role
-    const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
-      populate: ['users'],
-    });
-
-    // If the user is an employer, only show their own jobs
-    if (userRole.name === 'Employer') {
-      // Initialize filters if it doesn't exist
-      if (!ctx.query.filters) {
-        ctx.query.filters = {};
-      }
+    try {
+      // Get the user from the request
+      const user = ctx.state.user;
       
-      // Add employer filter
-      ctx.query.filters.employer = user.id;
+      if (!user) {
+        return ctx.unauthorized('You must be logged in to view jobs');
+      }
+
+      // Get the user's role
+      const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
+        populate: ['users'],
+      });
+
+      // If the user is an employer, only show their own jobs
+      if (userRole.name === 'Employer') {
+        try {
+          // Use entityService directly to fetch jobs
+          const jobs = await strapi.entityService.findMany('api::job.job', {
+            filters: {
+              user: user.id
+            },
+            populate: ['user'],
+          });
+
+          return {
+            data: jobs || [],
+            meta: { pagination: { page: 1, pageSize: 25, pageCount: Math.ceil((jobs?.length || 0) / 25), total: jobs?.length || 0 } }
+          };
+        } catch (error) {
+          console.error('Error fetching jobs with entityService:', error);
+          return {
+            data: [],
+            meta: { pagination: { page: 1, pageSize: 25, pageCount: 0, total: 0 } }
+          };
+        }
+      }
+
+      // For non-employers, use the default find controller
+      const result = await super.find(ctx);
+      
+      return {
+        data: result.data || [],
+        meta: result.meta || { pagination: { page: 1, pageSize: 25, pageCount: 0, total: 0 } }
+      };
+    } catch (error) {
+      console.error('Error in find method:', error);
+      return {
+        data: [],
+        meta: { pagination: { page: 1, pageSize: 25, pageCount: 0, total: 0 } }
+      };
     }
-
-    // Call the default find controller
-    const { data, meta } = await super.find(ctx);
-
-    return { data, meta };
   },
 
   async findOne(ctx: JobContext) {
-    // Get the user from the request
-    const user = ctx.state.user;
-    
-    if (!user) {
-      return ctx.unauthorized('You must be logged in to view job details');
+    try {
+      // Get the user from the request
+      const user = ctx.state.user;
+      
+      if (!user) {
+        return ctx.unauthorized('You must be logged in to view job details');
+      }
+
+      // Get the user's role
+      const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
+        populate: ['users'],
+      });
+
+      // Call the default findOne controller
+      const { data, meta } = await super.findOne(ctx);
+
+      // If the user is an employer, check if they own the job
+      if (userRole.name === 'Employer' && data.attributes.user?.data?.id !== user.id) {
+        return ctx.forbidden('You do not have permission to view this job');
+      }
+
+      return { data, meta };
+    } catch (error) {
+      console.error('Error in findOne method:', error);
+      return ctx.internalServerError('An error occurred while fetching job details');
     }
+  },
 
-    // Get the user's role
-    const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
-      populate: ['users'],
-    });
+  async create(ctx: JobContext) {
+    try {
+      const user = ctx.state.user;
+      
+      if (!user) {
+        return ctx.unauthorized('You must be logged in to create a job');
+      }
 
-    // Call the default findOne controller
-    const { data, meta } = await super.findOne(ctx);
+      if (user.role.name !== 'Employer') {
+        return ctx.unauthorized('Only employers can create jobs');
+      }
 
-    // If the user is an employer, check if they own the job
-    const jobEmployerId = data.attributes.employer?.data?.id;
-    if (userRole.name === 'Employer' && jobEmployerId !== user.id) {
-      return ctx.forbidden('You do not have permission to view this job');
+      const { data } = ctx.request.body;
+
+      if (!data) {
+        return ctx.badRequest('No data provided');
+      }
+
+      // Ensure required fields are present
+      const requiredFields = ['title', 'description', 'salary', 'location', 'jobType', 'experienceLevel', 'companyName'];
+      for (const field of requiredFields) {
+        if (!data[field]) {
+          return ctx.badRequest(`Missing required field: ${field}`);
+        }
+      }
+
+      // Validate salary is a number
+      if (typeof data.salary !== 'number') {
+        return ctx.badRequest('Salary must be a number');
+      }
+
+      // Validate jobType is valid
+      const validJobTypes = ['full-time', 'part-time', 'contract', 'internship'];
+      if (!validJobTypes.includes(data.jobType)) {
+        return ctx.badRequest('Invalid job type');
+      }
+
+      // Validate experienceLevel is valid
+      const validExperienceLevels = ['entry', 'mid', 'senior', 'lead', 'executive'];
+      if (!validExperienceLevels.includes(data.experienceLevel)) {
+        return ctx.badRequest('Invalid experience level');
+      }
+
+      // Format the job data
+      const jobData = {
+        ...data,
+        user: user.id,
+        publishedAt: new Date(),
+        requirements: data.requirements || "No specific requirements",
+        industry: data.industry || "Technology"
+      };
+
+      console.log('Creating job with data:', jobData);
+
+      // Create the job
+      const job = await strapi.entityService.create('api::job.job', {
+        data: jobData
+      });
+
+      console.log('Job created successfully:', job);
+
+      return ctx.created(job);
+    } catch (error) {
+      console.error('Error creating job:', error);
+      return ctx.internalServerError(error.message || 'Error creating job');
     }
-
-    return { data, meta };
   },
 
   async update(ctx: JobContext) {
-    // Get the user from the request
-    const user = ctx.state.user;
-    
-    if (!user) {
-      return ctx.unauthorized('You must be logged in to update a job');
-    }
-
-    // Get the user's role
-    const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
-      populate: ['users'],
-    });
-
-    // Check if the user is an employer
-    if (userRole.name !== 'Employer') {
-      return ctx.forbidden('Only employers can update jobs');
-    }
-
-    // Get the job
-    const job = await strapi.entityService.findOne('api::job.job', ctx.params.id, {
-      populate: ['employer'],
-    }) as unknown as StrapiEntity<JobAttributes>;
-
-    // Check if the user owns the job
-    const jobEmployerId = job.attributes.employer?.data?.id;
-    if (jobEmployerId !== user.id) {
-      return ctx.forbidden('You do not have permission to update this job');
-    }
-
-    // Structure the data properly for Strapi
-    const jobData = {
-      data: {
-        title: ctx.request.body.title,
-        description: ctx.request.body.description,
-        requirements: ctx.request.body.requirements,
-        salary: ctx.request.body.salary,
-        location: ctx.request.body.location,
-        type: ctx.request.body.type,
-        status: ctx.request.body.status,
-        employer: user.id,
-        jobType: ctx.request.body.type,
+    try {
+      // Get the user from the request
+      const user = ctx.state.user;
+      
+      if (!user) {
+        return ctx.unauthorized('You must be logged in to update a job');
       }
-    };
 
-    // Update the job
-    const entity = await strapi.entityService.update('api::job.job', ctx.params.id, jobData);
+      // Get the user's role
+      const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
+        populate: ['users'],
+      });
 
-    // Return the updated job
-    return this.transformResponse(entity);
+      // Check if the user is an employer
+      if (userRole.name !== 'Employer') {
+        return ctx.forbidden('Only employers can update jobs');
+      }
+
+      // Get the job
+      const job = await strapi.entityService.findOne('api::job.job', ctx.params.id, {
+        populate: ['user'],
+      }) as unknown as JobEntity;
+
+      // Check if the user owns the job
+      if (job.user?.id !== user.id) {
+        return ctx.forbidden('You do not have permission to update this job');
+      }
+
+      // Call the default update controller
+      const response = await super.update(ctx);
+      
+      return response;
+    } catch (error) {
+      console.error('Error in update method:', error);
+      return ctx.internalServerError('An error occurred while updating the job');
+    }
   },
 
   async delete(ctx: JobContext) {
-    // Get the user from the request
-    const user = ctx.state.user;
-    
-    if (!user) {
-      return ctx.unauthorized('You must be logged in to delete a job');
+    try {
+      // Get the user from the request
+      const user = ctx.state.user;
+      
+      if (!user) {
+        return ctx.unauthorized('You must be logged in to delete a job');
+      }
+
+      // Get the user's role
+      const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
+        populate: ['users'],
+      });
+
+      // Check if the user is an employer
+      if (userRole.name !== 'Employer') {
+        return ctx.forbidden('Only employers can delete jobs');
+      }
+
+      // Get the job
+      const job = await strapi.entityService.findOne('api::job.job', ctx.params.id, {
+        populate: ['user'],
+      }) as unknown as JobEntity;
+
+      // Check if the user owns the job
+      if (job.user?.id !== user.id) {
+        return ctx.forbidden('You do not have permission to delete this job');
+      }
+
+      // Call the default delete controller
+      const response = await super.delete(ctx);
+      
+      return response;
+    } catch (error) {
+      console.error('Error in delete method:', error);
+      return ctx.internalServerError('An error occurred while deleting the job');
     }
-
-    // Get the user's role
-    const userRole = await strapi.entityService.findOne('plugin::users-permissions.role', user.role.id, {
-      populate: ['users'],
-    });
-
-    // Check if the user is an employer
-    if (userRole.name !== 'Employer') {
-      return ctx.forbidden('Only employers can delete jobs');
-    }
-
-    // Get the job
-    const job = await strapi.entityService.findOne('api::job.job', ctx.params.id, {
-      populate: ['employer'],
-    }) as unknown as StrapiEntity<JobAttributes>;
-
-    // Check if the user owns the job
-    const jobEmployerId = job.attributes.employer?.data?.id;
-    if (jobEmployerId !== user.id) {
-      return ctx.forbidden('You do not have permission to delete this job');
-    }
-
-    // Delete the job
-    const entity = await strapi.entityService.delete('api::job.job', ctx.params.id);
-
-    // Return the deleted job
-    return this.transformResponse(entity);
   },
 }));
