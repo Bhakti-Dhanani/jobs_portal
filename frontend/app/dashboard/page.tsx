@@ -18,7 +18,7 @@ const Dashboard = () => {
     // Redirect to the appropriate dashboard based on role
     if (role === "Employer") {
       router.push("/dashboard/employer");
-    } else if (role === "Job Seeker") {
+    } else if (role === "JobSeeker") {
       router.push("/dashboard/jobseeker");
     } else {
       // If role is not recognized, redirect to login
