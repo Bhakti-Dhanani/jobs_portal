@@ -24,28 +24,28 @@ interface JobResponse {
 
 interface Application {
   id: number;
-  attributes: {
-    status: string;
-    resume: {
-      data: {
-        id: number;
-        attributes: {
-          url: string;
-          name: string;
-        };
-      };
-    };
-    job: {
-      data: {
-        id: number;
-        attributes: {
-          title: string;
-        };
-      };
-    };
-    createdAt: string;
-    coverLetter?: string;
-  };
+  status: 'pending' | 'reviewed' | 'accepted' | 'rejected';
+  coverLetter?: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  resume: {
+    id: number;
+    url: string;
+    name: string;
+  } | null;
+  job: {
+    id: number;
+    title: string;
+    companyName: string;
+    expiredAt?: string;
+    user?: { id: number };
+  } | null;
+  applicant: {
+    id: number;
+    username: string;
+    email: string;
+  } | null;
 }
 
 interface FormData {
@@ -77,7 +77,6 @@ const initialFormData: FormData = {
 const EmployerDashboard = () => {
   const router = useRouter();
   const [jobs, setJobs] = useState<JobResponse[]>([]);
-  const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +130,6 @@ const EmployerDashboard = () => {
 
     if (checkAuth()) {
       fetchJobs();
-      fetchApplications();
     }
   }, []);
 
@@ -220,39 +218,6 @@ const EmployerDashboard = () => {
       setError(error instanceof Error ? error.message : "Failed to fetch jobs");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchApplications = async () => {
-    try {
-      const jwt = localStorage.getItem("jwt");
-      const userData = localStorage.getItem("user");
-
-      if (!jwt || !userData) {
-        router.push('/login');
-        return;
-      }
-
-      const user = JSON.parse(userData);
-      const response: Response = await fetch(
-        `http://localhost:1337/api/applications?populate=*&filters[job][user][id][$eq]=${user.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch applications");
-      }
-
-      const data = await response.json();
-      setApplications(data.data);
-    } catch (error) {
-      console.error("Error fetching applications:", error);
-      setError("Failed to fetch applications");
     }
   };
 
@@ -428,7 +393,7 @@ const EmployerDashboard = () => {
     }
   };
 
-  const handleUpdateApplicationStatus = async (applicationId: number, newStatus: string) => {
+  const handleUpdateApplicationStatus = async (applicationId: number, newStatus: 'pending' | 'reviewed' | 'accepted' | 'rejected') => {
     try {
       setIsUpdatingStatus(true);
       const jwt = localStorage.getItem("jwt");
@@ -437,7 +402,7 @@ const EmployerDashboard = () => {
         throw new Error("You must be logged in to update application status");
       }
 
-      const response: Response = await fetch(`http://localhost:1337/api/application/${applicationId}`, {
+      const response: Response = await fetch(`http://localhost:1337/api/applications/${applicationId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -451,27 +416,29 @@ const EmployerDashboard = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData = { error: { message: "Failed to update application status" } };
+        try {
+           errorData = await response.json(); 
+        } catch (parseError) {
+           console.error("Failed to parse error response:", parseError);
+           errorData.error.message = `Failed to update status: ${response.statusText}`;
+        }
         throw new Error(errorData.error?.message || "Failed to update application status");
       }
 
-      // Update the local state
-      setApplications(prevApplications => 
-        prevApplications.map(app => 
-          app.id === applicationId 
-            ? { 
-                ...app, 
-                attributes: { 
-                  ...app.attributes, 
-                  status: newStatus 
-                } 
-              } 
-            : app
+      // Update application status ONLY in the jobApplications state if it's relevant
+      setJobApplications((prevJobApps) =>
+        prevJobApps.map((app) =>
+          app.id === applicationId ? { ...app, status: newStatus } : app
         )
       );
 
       setIsStatusModalOpen(false);
       setSelectedApplication(null);
+      // Refresh job applications in the modal if it's open for the relevant job
+      if (selectedJobForApplications && isJobApplicationsModalOpen) {
+          await fetchJobApplications(selectedJobForApplications.id);
+      }
       alert("Application status updated successfully!");
     } catch (err) {
       console.error("Error updating application status:", err);
@@ -487,14 +454,18 @@ const EmployerDashboard = () => {
   };
 
   const fetchJobApplications = async (jobId: number) => {
+    console.log(`fetchJobApplications - Fetching applications for Job ID: ${jobId}`);
     try {
       const jwt = localStorage.getItem("jwt");
       if (!jwt) {
         throw new Error("You must be logged in to view applications");
       }
 
+      const fetchUrl = `http://localhost:1337/api/applications?populate=*&filters[job][id][$eq]=${jobId}`;
+      console.log(`fetchJobApplications - Fetch URL: ${fetchUrl}`);
+
       const fetchResponse: Response = await fetch(
-        `http://localhost:1337/api/application?populate=*&filters[job][id][$eq]=${jobId}`,
+        fetchUrl,
         {
           headers: {
             Authorization: `Bearer ${jwt}`,
@@ -503,15 +474,27 @@ const EmployerDashboard = () => {
         }
       );
 
+      console.log(`fetchJobApplications - Response Status: ${fetchResponse.status}`);
+
       if (!fetchResponse.ok) {
-        throw new Error("Failed to fetch job applications");
+        const errorText = await fetchResponse.text();
+        console.error(`fetchJobApplications - API Error Response: ${errorText}`);
+        throw new Error(`Failed to fetch job applications: ${fetchResponse.statusText}`);
       }
 
-      const data = await fetchResponse.json();
-      setJobApplications(data.data);
-    } catch (error) {
-      console.error("Error fetching job applications:", error);
-      setError("Failed to fetch job applications");
+      const responseData = await fetchResponse.json();
+      console.log(`fetchJobApplications - Raw Response Data:`, JSON.stringify(responseData, null, 2));
+
+      if (!responseData || !responseData.data) {
+          console.error("fetchJobApplications - Invalid data structure received:", responseData);
+          throw new Error("Invalid data structure received from server.");
+      }
+      
+      setJobApplications(responseData.data);
+    } catch (err) {
+      console.error("Error fetching job applications:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch job applications");
+      setJobApplications([]);
     }
   };
 
@@ -620,59 +603,6 @@ const EmployerDashboard = () => {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Applications Section */}
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Job Applications</h2>
-            <div className="space-y-4">
-              {applications.map((application) => (
-                <div key={application.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-lg">
-                        Application for: {application.attributes.job.data.attributes.title}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        Status: <span className={`font-medium ${getStatusColor(application.attributes.status)}`}>{application.attributes.status}</span>
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Applied on: {new Date(application.attributes.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex space-x-2">
-                      {application.attributes.resume?.data && (
-                        <a
-                          href={`http://localhost:1337${application.attributes.resume.data.attributes.url}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                        >
-                          View Resume
-                        </a>
-                      )}
-                      <button
-                        onClick={() => openStatusModal(application)}
-                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                      >
-                        Update Status
-                      </button>
-                    </div>
-                  </div>
-                  {application.attributes.coverLetter && (
-                    <div className="mt-4">
-                      <h4 className="font-medium text-gray-700 mb-1">Cover Letter:</h4>
-                      <p className="text-gray-600 text-sm">
-                        {application.attributes.coverLetter}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {applications.length === 0 && (
-                <p className="text-gray-500">No applications received yet.</p>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -812,14 +742,14 @@ const EmployerDashboard = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h2 className="text-xl font-semibold mb-4">Update Application Status</h2>
             <p className="mb-4">
-              Application for: <span className="font-medium">{selectedApplication.attributes.job.data.attributes.title}</span>
+              Application for: <span className="font-medium">{selectedApplication.job?.title || 'N/A'}</span>
             </p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  defaultValue={selectedApplication.attributes.status}
+                  defaultValue={selectedApplication.status}
                 >
                   <option value="pending">Pending</option>
                   <option value="reviewed">Reviewed</option>
@@ -844,7 +774,7 @@ const EmployerDashboard = () => {
                   onClick={() => {
                     const selectElement = document.querySelector('select') as HTMLSelectElement;
                     if (selectElement) {
-                      handleUpdateApplicationStatus(selectedApplication.id, selectElement.value);
+                      handleUpdateApplicationStatus(selectedApplication.id, selectElement.value as 'pending' | 'reviewed' | 'accepted' | 'rejected');
                     }
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -891,18 +821,18 @@ const EmployerDashboard = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(application.attributes.status)}`}>
-                            {application.attributes.status.charAt(0).toUpperCase() + application.attributes.status.slice(1)}
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
+                            {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                           </span>
                           <p className="text-sm text-gray-500">
-                            Applied on: {new Date(application.attributes.createdAt).toLocaleDateString()}
+                            Applied on: {new Date(application.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
                       <div className="flex space-x-2">
-                        {application.attributes.resume?.data && (
+                        {application.resume?.url && (
                           <a
-                            href={`http://localhost:1337${application.attributes.resume.data.attributes.url}`}
+                            href={`http://localhost:1337${application.resume.url}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
@@ -922,11 +852,11 @@ const EmployerDashboard = () => {
                         </button>
                       </div>
                     </div>
-                    {application.attributes.coverLetter && (
+                    {application.coverLetter && (
                       <div className="mt-4">
                         <h4 className="font-medium text-gray-700 mb-1">Cover Letter:</h4>
                         <p className="text-gray-600 text-sm">
-                          {application.attributes.coverLetter}
+                          {application.coverLetter}
                         </p>
                       </div>
                     )}

@@ -647,9 +647,8 @@ export default factories.createCoreController('api::application.application', ({
 
       console.log('Find - Filters:', JSON.stringify(filters, null, 2));
 
-      // Simplify population to test basic relation
       const populateFields = {
-        job: true, // Test with minimal population first
+        job: { fields: ['id', 'title', 'companyName', 'expiredAt'], populate: { user: { fields: ['id'] } } },
         applicant: { fields: ['id', 'username', 'email'] },
         resume: { fields: ['id', 'url', 'name'] },
       };
@@ -658,9 +657,8 @@ export default factories.createCoreController('api::application.application', ({
         populate: populateFields as any,
         filters,
       })) as unknown as ApplicationEntity[];
-      console.log('Find - Initial Fetch with job: true:', JSON.stringify(applications, null, 2));
+      console.log('Find - Initial Fetch:', JSON.stringify(applications, null, 2));
 
-      // Fetch raw database entries and manually populate job if null
       for (const app of applications) {
         if (!app.job) {
           console.warn(`Find - Application ID ${app.id} has null job after initial fetch`);
@@ -692,6 +690,69 @@ export default factories.createCoreController('api::application.application', ({
     } catch (err) {
       console.error('Find - Error:', err);
       return ctx.internalServerError('An error occurred while fetching applications');
+    }
+  },
+
+  async update(ctx: StrapiContext): Promise<any> {
+    try {
+      const { id: idStr } = ctx.params;
+      const { user } = ctx.state;
+      const { data: requestData } = ctx.request.body;
+
+      console.log(`Update - Attempting update for application ID: ${idStr}`);
+      console.log(`Update - User: ${user?.id}, Role: ${user?.role?.name}`);
+      console.log(`Update - Request Data:`, JSON.stringify(requestData, null, 2));
+
+      if (!user) return ctx.unauthorized('You must be logged in to update applications');
+      if (!idStr) return ctx.badRequest('Application ID is required');
+      if (!requestData || !requestData.status) return ctx.badRequest('New status is required in data object');
+
+      const id = parseInt(idStr, 10);
+      if (isNaN(id)) return ctx.badRequest('Invalid application ID');
+
+      const newStatus = requestData.status;
+      const validStatuses = ['pending', 'reviewed', 'accepted', 'rejected'];
+      if (!validStatuses.includes(newStatus)) {
+        return ctx.badRequest(`Invalid status value. Must be one of: ${validStatuses.join(', ')}`);
+      }
+
+      const application = (await strapi.entityService.findOne('api::application.application', id, {
+        populate: {
+          job: { populate: { user: { fields: ['id'] } } },
+        },
+      })) as unknown as ApplicationEntity;
+      console.log('Update - Fetched application:', JSON.stringify(application, null, 2));
+
+      if (!application) return ctx.notFound('Application not found');
+
+      const userRole = user.role.name.toLowerCase();
+      const jobUserId = application.job?.user?.id;
+      console.log('Update - Permission check info:', { userRole, userId: user.id, jobUserId });
+
+      if (userRole !== 'employer' || !jobUserId || jobUserId !== user.id) {
+        console.warn('Update - Permission denied');
+        return ctx.forbidden('You do not have permission to update this application status');
+      }
+
+      console.log('Update - Permission granted. Proceeding with update.');
+      const updatedApplication = (await strapi.entityService.update('api::application.application', id, {
+        data: { status: newStatus },
+        populate: {
+          job: { fields: ['id', 'title', 'companyName', 'expiredAt'], populate: { user: { fields: ['id'] } } },
+          applicant: { fields: ['id', 'username', 'email'] },
+          resume: { fields: ['id', 'url', 'name'] },
+        },
+      })) as unknown as ApplicationEntity;
+
+      console.log('Update - Successfully updated:', JSON.stringify(updatedApplication, null, 2));
+      return { data: updatedApplication };
+    } catch (err) {
+      console.error('Update - Error:', err);
+      if (err instanceof Error) {
+        console.error('Update - Error Stack:', err.stack);
+        return ctx.internalServerError(`An error occurred while updating the application: ${err.message}`);
+      }
+      return ctx.internalServerError('An unknown error occurred while updating the application');
     }
   },
 
