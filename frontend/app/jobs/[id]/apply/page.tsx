@@ -30,7 +30,7 @@ const JobApplicationPage = ({ params }: { params: { id: string } }) => {
     const user = localStorage.getItem("user");
     const role = localStorage.getItem("role");
     
-    if (!user || role !== "jobseeker") {
+    if (!user || role?.toLowerCase() !== "jobseeker") {
       router.push("/login");
       return;
     }
@@ -78,9 +78,11 @@ const JobApplicationPage = ({ params }: { params: { id: string } }) => {
 
   const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      console.log("Selected resume file:", file.name, file.type, file.size);
       setFormData({
         ...formData,
-        resume: e.target.files[0],
+        resume: file,
       });
     }
   };
@@ -107,11 +109,25 @@ const JobApplicationPage = ({ params }: { params: { id: string } }) => {
       
       // Create FormData for file upload
       const formDataToSend = new FormData();
-      formDataToSend.append("files.resume", formData.resume);
+      
+      // Append the resume file with the correct field name
+      if (formData.resume) {
+        formDataToSend.append("files.resume", formData.resume);
+      }
+      
+      // Append the application data
       formDataToSend.append("data.coverLetter", formData.coverLetter);
-      formDataToSend.append("data.app_status", "pending");
+      formDataToSend.append("data.status", "pending");
       formDataToSend.append("data.job", params.id);
       formDataToSend.append("data.applicant", user.id);
+      
+      console.log("Submitting application with data:", {
+        coverLetter: formData.coverLetter,
+        status: "pending",
+        job: params.id,
+        applicant: user.id,
+        resume: formData.resume ? formData.resume.name : null
+      });
       
       const response = await fetch("http://localhost:1337/api/applications", {
         method: "POST",
@@ -124,7 +140,14 @@ const JobApplicationPage = ({ params }: { params: { id: string } }) => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Error details:', errorData);
-        throw new Error(`Failed to submit application: ${response.status} ${response.statusText}`);
+        
+        // Extract error message from the response if available
+        let errorMessage = `Failed to submit application: ${response.status} ${response.statusText}`;
+        if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       setSubmitSuccess(true);

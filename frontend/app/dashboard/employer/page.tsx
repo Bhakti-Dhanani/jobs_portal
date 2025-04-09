@@ -22,6 +22,32 @@ interface JobResponse {
   };
 }
 
+interface Application {
+  id: number;
+  attributes: {
+    status: string;
+    resume: {
+      data: {
+        id: number;
+        attributes: {
+          url: string;
+          name: string;
+        };
+      };
+    };
+    job: {
+      data: {
+        id: number;
+        attributes: {
+          title: string;
+        };
+      };
+    };
+    createdAt: string;
+    coverLetter?: string;
+  };
+}
+
 interface FormData {
   title: string;
   description: string;
@@ -51,6 +77,7 @@ const initialFormData: FormData = {
 const EmployerDashboard = () => {
   const router = useRouter();
   const [jobs, setJobs] = useState<JobResponse[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +85,12 @@ const EmployerDashboard = () => {
   const [currentJob, setCurrentJob] = useState<JobResponse | null>(null);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isJobApplicationsModalOpen, setIsJobApplicationsModalOpen] = useState(false);
+  const [selectedJobForApplications, setSelectedJobForApplications] = useState<JobResponse | null>(null);
+  const [jobApplications, setJobApplications] = useState<Application[]>([]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -98,6 +131,7 @@ const EmployerDashboard = () => {
 
     if (checkAuth()) {
       fetchJobs();
+      fetchApplications();
     }
   }, []);
 
@@ -122,7 +156,7 @@ const EmployerDashboard = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:1337/api/jobs?populate=*&filters[user][id][$eq]=${user.id}`, {
+      const response: Response = await fetch(`http://localhost:1337/api/job?populate=*&filters[user][id][$eq]=${user.id}`, {
         headers: {
           Authorization: `Bearer ${jwt}`,
           "Content-Type": "application/json",
@@ -186,6 +220,39 @@ const EmployerDashboard = () => {
       setError(error instanceof Error ? error.message : "Failed to fetch jobs");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchApplications = async () => {
+    try {
+      const jwt = localStorage.getItem("jwt");
+      const userData = localStorage.getItem("user");
+
+      if (!jwt || !userData) {
+        router.push('/login');
+        return;
+      }
+
+      const user = JSON.parse(userData);
+      const response: Response = await fetch(
+        `http://localhost:1337/api/application?populate=*&filters[job][user][id][$eq]=${user.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch applications");
+      }
+
+      const data = await response.json();
+      setApplications(data.data);
+    } catch (error) {
+      console.error("Error fetching applications:", error);
+      setError("Failed to fetch applications");
     }
   };
 
@@ -315,7 +382,7 @@ const EmployerDashboard = () => {
         throw new Error("You must be logged in to delete a job");
       }
 
-      const response = await fetch(`http://localhost:1337/api/jobs/${jobId}`, {
+      const response: Response = await fetch(`http://localhost:1337/api/job/${jobId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${jwt}`,
@@ -344,6 +411,114 @@ const EmployerDashboard = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("role");
     router.push("/login");
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'text-yellow-800 bg-yellow-100';
+      case 'reviewed':
+        return 'text-blue-800 bg-blue-100';
+      case 'accepted':
+        return 'text-green-800 bg-green-100';
+      case 'rejected':
+        return 'text-red-800 bg-red-100';
+      default:
+        return 'text-gray-800 bg-gray-100';
+    }
+  };
+
+  const handleUpdateApplicationStatus = async (applicationId: number, newStatus: string) => {
+    try {
+      setIsUpdatingStatus(true);
+      const jwt = localStorage.getItem("jwt");
+      
+      if (!jwt) {
+        throw new Error("You must be logged in to update application status");
+      }
+
+      const response: Response = await fetch(`http://localhost:1337/api/application/${applicationId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify({
+          data: {
+            status: newStatus
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || "Failed to update application status");
+      }
+
+      // Update the local state
+      setApplications(prevApplications => 
+        prevApplications.map(app => 
+          app.id === applicationId 
+            ? { 
+                ...app, 
+                attributes: { 
+                  ...app.attributes, 
+                  status: newStatus 
+                } 
+              } 
+            : app
+        )
+      );
+
+      setIsStatusModalOpen(false);
+      setSelectedApplication(null);
+      alert("Application status updated successfully!");
+    } catch (err) {
+      console.error("Error updating application status:", err);
+      setError(err instanceof Error ? err.message : "Failed to update application status");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const openStatusModal = (application: Application) => {
+    setSelectedApplication(application);
+    setIsStatusModalOpen(true);
+  };
+
+  const fetchJobApplications = async (jobId: number) => {
+    try {
+      const jwt = localStorage.getItem("jwt");
+      if (!jwt) {
+        throw new Error("You must be logged in to view applications");
+      }
+
+      const fetchResponse: Response = await fetch(
+        `http://localhost:1337/api/application?populate=*&filters[job][id][$eq]=${jobId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!fetchResponse.ok) {
+        throw new Error("Failed to fetch job applications");
+      }
+
+      const data = await fetchResponse.json();
+      setJobApplications(data.data);
+    } catch (error) {
+      console.error("Error fetching job applications:", error);
+      setError("Failed to fetch job applications");
+    }
+  };
+
+  const openJobApplicationsModal = (job: JobResponse) => {
+    setSelectedJobForApplications(job);
+    setIsJobApplicationsModalOpen(true);
+    fetchJobApplications(job.id);
   };
 
   return (
@@ -420,6 +595,12 @@ const EmployerDashboard = () => {
                       </div>
                       <div className="mt-4 flex justify-end space-x-2">
                         <button
+                          onClick={() => openJobApplicationsModal(job)}
+                          className="bg-indigo-500 text-white px-3 py-1 rounded hover:bg-indigo-600 text-sm"
+                        >
+                          View Applications
+                        </button>
+                        <button
                           onClick={() => openEditModal(job)}
                           className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-sm"
                           disabled={isDeleting}
@@ -439,6 +620,59 @@ const EmployerDashboard = () => {
                 })}
               </div>
             )}
+          </div>
+
+          {/* Applications Section */}
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold mb-4">Job Applications</h2>
+            <div className="space-y-4">
+              {applications.map((application) => (
+                <div key={application.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium text-lg">
+                        Application for: {application.attributes.job.data.attributes.title}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Status: <span className={`font-medium ${getStatusColor(application.attributes.status)}`}>{application.attributes.status}</span>
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Applied on: {new Date(application.attributes.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      {application.attributes.resume?.data && (
+                        <a
+                          href={`http://localhost:1337${application.attributes.resume.data.attributes.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                        >
+                          View Resume
+                        </a>
+                      )}
+                      <button
+                        onClick={() => openStatusModal(application)}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                      >
+                        Update Status
+                      </button>
+                    </div>
+                  </div>
+                  {application.attributes.coverLetter && (
+                    <div className="mt-4">
+                      <h4 className="font-medium text-gray-700 mb-1">Cover Letter:</h4>
+                      <p className="text-gray-600 text-sm">
+                        {application.attributes.coverLetter}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {applications.length === 0 && (
+                <p className="text-gray-500">No applications received yet.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -568,6 +802,138 @@ const EmployerDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Status Update Modal */}
+      {isStatusModalOpen && selectedApplication && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Update Application Status</h2>
+            <p className="mb-4">
+              Application for: <span className="font-medium">{selectedApplication.attributes.job.data.attributes.title}</span>
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  defaultValue={selectedApplication.attributes.status}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="reviewed">Reviewed</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStatusModalOpen(false);
+                    setSelectedApplication(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  disabled={isUpdatingStatus}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectElement = document.querySelector('select') as HTMLSelectElement;
+                    if (selectElement) {
+                      handleUpdateApplicationStatus(selectedApplication.id, selectElement.value);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={isUpdatingStatus}
+                >
+                  {isUpdatingStatus ? "Updating..." : "Update Status"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Job Applications Modal */}
+      {isJobApplicationsModalOpen && selectedJobForApplications && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">
+                Applications for {selectedJobForApplications.attributes.title}
+              </h2>
+              <button
+                onClick={() => {
+                  setIsJobApplicationsModalOpen(false);
+                  setSelectedJobForApplications(null);
+                  setJobApplications([]);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {jobApplications.length === 0 ? (
+              <div className="bg-gray-50 p-6 rounded-lg text-center">
+                <p className="text-gray-600">No applications received for this job yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {jobApplications.map((application) => (
+                  <div key={application.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(application.attributes.status)}`}>
+                            {application.attributes.status.charAt(0).toUpperCase() + application.attributes.status.slice(1)}
+                          </span>
+                          <p className="text-sm text-gray-500">
+                            Applied on: {new Date(application.attributes.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        {application.attributes.resume?.data && (
+                          <a
+                            href={`http://localhost:1337${application.attributes.resume.data.attributes.url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                          >
+                            View Resume
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedApplication(application);
+                            setIsStatusModalOpen(true);
+                            setIsJobApplicationsModalOpen(false);
+                          }}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                        >
+                          Update Status
+                        </button>
+                      </div>
+                    </div>
+                    {application.attributes.coverLetter && (
+                      <div className="mt-4">
+                        <h4 className="font-medium text-gray-700 mb-1">Cover Letter:</h4>
+                        <p className="text-gray-600 text-sm">
+                          {application.attributes.coverLetter}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

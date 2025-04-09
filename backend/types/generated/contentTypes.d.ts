@@ -378,18 +378,23 @@ export interface ApiApplicationApplication extends Struct.CollectionTypeSchema {
     singularName: 'application';
   };
   options: {
-    draftAndPublish: false;
+    draftAndPublish: true;
   };
   attributes: {
-    coverLetter: Schema.Attribute.Text;
+    applicant: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    > &
+      Schema.Attribute.Required;
+    coverLetter: Schema.Attribute.Text &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 5000;
+      }>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    job: Schema.Attribute.Relation<'manyToOne', 'api::job.job'>;
-    jobseeker: Schema.Attribute.Relation<
-      'manyToOne',
-      'plugin::users-permissions.user'
-    >;
+    job: Schema.Attribute.Relation<'manyToOne', 'api::job.job'> &
+      Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -397,7 +402,13 @@ export interface ApiApplicationApplication extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
-    resume: Schema.Attribute.Media<'files'>;
+    resume: Schema.Attribute.Media<'files'> &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetPluginOptions<{
+        upload: {
+          maxSize: 5242880;
+        };
+      }>;
     status: Schema.Attribute.Enumeration<
       ['pending', 'reviewed', 'accepted', 'rejected']
     > &
