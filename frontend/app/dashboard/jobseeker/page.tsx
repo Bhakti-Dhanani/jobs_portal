@@ -22,36 +22,68 @@ interface JobResponse {
   };
 }
 
+// interface Application {
+//   id: number;
+//   coverLetter?: string;
+//   createdAt: string;
+//   status: string;
+//   job: {
+//     data: {
+//       id: number;
+//       attributes: {
+//         title: string;
+//         companyName: string;
+//         expiredAt?: string;
+//       };
+//     } | null;
+//   } | null;
+//   applicant: {
+//     id: number;
+//     username: string;
+//     email: string;
+//   } | null;
+//   resume: {
+//     data: {
+//       id: number;
+//       attributes: {
+//         url: string;
+//         name: string;
+//       };
+//     } | null;
+//   } | null;
+// }
 interface Application {
   id: number;
+  documentId: string;
   coverLetter?: string;
   createdAt: string;
+  updatedAt: string;
   status: string;
   job: {
-    data: {
+    id: number;
+    documentId: string;
+    title: string;
+    companyName: string;
+    expiredAt: string;
+    user: {
       id: number;
-      attributes: {
-        title: string;
-        companyName: string;
-        expiredAt?: string;
-      };
-    } | null;
+      documentId: string;
+    };
   } | null;
   applicant: {
     id: number;
+    documentId: string;
     username: string;
     email: string;
-  } | null;
+  };
   resume: {
-    data: {
-      id: number;
-      attributes: {
-        url: string;
-        name: string;
-      };
-    } | null;
-  } | null;
+    id: number;
+    documentId: string;
+    url: string;
+    name: string;
+  };
 }
+
 
 export default function JobSeekerDashboard() {
   const router = useRouter();
@@ -109,14 +141,28 @@ export default function JobSeekerDashboard() {
   
       console.log('fetchAppliedJobs - Auth check:', { jwt: !!jwt, userData: !!userData, role: user.role?.name });
   
-      const response = await fetch(
-        "http://localhost:1337/api/applications?populate[job][fields][0]=title&populate[job][fields][1]=companyName&populate[job][fields][2]=expiredAt&populate[applicant][fields][0]=id&populate[applicant][fields][1]=username&populate[applicant][fields][2]=email&populate[resume][fields][0]=id&populate[resume][fields][1]=url&populate[resume][fields][2]=name",
-        {
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-          },
-        }
-      );
+      // Construct a more precise population query
+      const populateParams = new URLSearchParams({
+        'populate[job][fields][0]': 'id',         // Explicitly add job ID
+        'populate[job][fields][1]': 'title',
+        'populate[job][fields][2]': 'companyName',
+        'populate[job][fields][3]': 'expiredAt',
+        'populate[job][populate][user][fields][0]': 'id', // Populate nested user ID
+        'populate[applicant][fields][0]': 'id',
+        'populate[applicant][fields][1]': 'username',
+        'populate[applicant][fields][2]': 'email',
+        'populate[resume][fields][0]': 'id',
+        'populate[resume][fields][1]': 'url',
+        'populate[resume][fields][2]': 'name',
+      });
+      const apiUrl = `http://localhost:1337/api/applications?${populateParams.toString()}`;
+      console.log('fetchAppliedJobs - API URL:', apiUrl); // Log the constructed URL
+
+      const response = await fetch(apiUrl, { // Use the constructed URL
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
   
       if (!response.ok) {
         const errorData = await response.json();
@@ -132,8 +178,8 @@ export default function JobSeekerDashboard() {
       console.log('fetchAppliedJobs - Set userApplications:', data);
   
       const appliedJobIds = data
-        .filter(app => app.job?.data?.id != null)
-        .map(app => app.job!.data!.id);
+        .filter(app => app.job?.id != null)
+        .map(app => app.job!.id);
       setAppliedJobs(appliedJobIds);
       console.log('fetchAppliedJobs - Set appliedJobs:', appliedJobIds);
     } catch (err) {
@@ -591,7 +637,7 @@ export default function JobSeekerDashboard() {
                   {userApplications.map((application) => {
                     console.log(`Rendering Application ID: ${application.id}, Job Data:`, application.job);
 
-                    const jobAttributes = application.job?.data?.attributes;
+                    const jobAttributes = application.job;
 
                     return (
                       <div key={application.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
@@ -616,9 +662,9 @@ export default function JobSeekerDashboard() {
                             </div>
                           </div>
                           <div className="flex-shrink-0">
-                            {application.resume?.data?.attributes.url ? (
+                            {application.resume?.url ? (
                               <a
-                                href={`http://localhost:1337${application.resume.data.attributes.url}`}
+                                href={`http://localhost:1337${application.resume.url}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-150"
@@ -723,7 +769,7 @@ export default function JobSeekerDashboard() {
       {isUpdateModalOpen && selectedApplicationForUpdate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-            <h2 className="text-xl font-semibold mb-4">Update Resume for {selectedApplicationForUpdate.job?.data?.attributes.title || 'Application'}</h2>
+            <h2 className="text-xl font-semibold mb-4">Update Resume for {selectedApplicationForUpdate.job?.title || 'Application'}</h2>
             {error && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">
                 {error}

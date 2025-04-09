@@ -470,9 +470,24 @@ interface ApplicationEntity {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
-  resume?: { id: number; url: string; name: string; mime: string } | null;
-  job?: { id: number; title: string; companyName: string; expiredAt?: string; user?: { id: number } };
-  applicant?: { id: number; username: string; email: string };
+  resume: {
+    id: number;
+    documentId: string;
+    url: string;
+    name: string;
+  } | null;
+  job: {
+    id: number;
+    title: string;
+    companyName: string;
+    expiredAt?: string;
+    user?: { id: number };
+  } | null;
+  applicant: {
+    id: number;
+    username: string;
+    email: string;
+  } | null;
 }
 
 interface JobEntity {
@@ -506,7 +521,7 @@ interface StrapiContext extends Context {
 }
 
 export default factories.createCoreController('api::application.application', ({ strapi }) => ({
-  async create(ctx: StrapiContext) {
+  async create(ctx: StrapiContext): Promise<any> {
     try {
       const { user } = ctx.state;
       if (!user) return ctx.unauthorized('You must be logged in to submit applications');
@@ -515,8 +530,8 @@ export default factories.createCoreController('api::application.application', ({
         return ctx.forbidden('Only job seekers can submit applications');
       }
 
-      console.log('Create - Raw Request Body:', ctx.request.body);
-      console.log('Create - Raw Request Files:', ctx.request.files);
+      console.log('Create - Raw Request Body:', JSON.stringify(ctx.request.body, null, 2));
+      console.log('Create - Raw Request Files:', JSON.stringify(ctx.request.files, null, 2));
 
       let requestData: Partial<ApplicationData>;
       if (typeof ctx.request.body.data === 'string') {
@@ -529,62 +544,86 @@ export default factories.createCoreController('api::application.application', ({
       } else {
         requestData = ctx.request.body.data || {};
       }
-      console.log('Create - Parsed Request Data:', requestData);
+      console.log('Create - Parsed Request Data:', JSON.stringify(requestData, null, 2));
 
       const jobId = requestData.job;
       if (!jobId) return ctx.badRequest('Job ID is required');
       const parsedJobId = parseInt(jobId.toString(), 10);
       if (isNaN(parsedJobId)) return ctx.badRequest('Invalid job ID');
 
-      // Verify job exists and log it
-      const job = await strapi.entityService.findOne('api::job.job', parsedJobId, {
+      const job = (await strapi.entityService.findOne('api::job.job', parsedJobId, {
         fields: ['id', 'title', 'companyName', 'expiredAt'],
         populate: { user: { fields: ['id'] } },
-      });
-      console.log('Create - Job Verification:', job);
+      })) as JobEntity | null;
+      console.log('Create - Job Verification:', JSON.stringify(job, null, 2));
       if (!job) return ctx.notFound(`Job with ID ${parsedJobId} not found`);
 
-      const existingApplications = await strapi.entityService.findMany('api::application.application', {
+      const existingApplications = (await strapi.entityService.findMany('api::application.application', {
         filters: { job: { id: parsedJobId }, applicant: { id: user.id } },
-      });
+        populate: { job: true },
+      })) as unknown as ApplicationEntity[];
+      console.log('Create - Existing Applications:', JSON.stringify(existingApplications, null, 2));
       if (existingApplications.length > 0) return ctx.badRequest('You have already applied for this job');
 
       const resumeFile = ctx.request.files?.resume || ctx.request.files?.['files.resume'];
       if (!resumeFile) return ctx.badRequest('Resume file is required');
 
-      const uploadedFiles = await strapi.plugins.upload.services.upload.upload({
+      const uploadService = strapi.plugins['upload'].services.upload;
+      const uploadedFiles = await uploadService.upload({
         data: {},
         files: resumeFile,
       }) as UploadedFile[];
+      console.log('Create - Uploaded Files:', JSON.stringify(uploadedFiles, null, 2));
       if (!uploadedFiles || uploadedFiles.length === 0 || !uploadedFiles[0].id) {
         return ctx.badRequest('Failed to upload resume file');
       }
       const resumeId = uploadedFiles[0].id;
 
-      const applicationData = {
+      const applicationData: ApplicationData = {
         job: parsedJobId,
         applicant: user.id,
-        status: 'pending' as const,
+        status: 'pending',
         coverLetter: requestData.coverLetter || '',
         resume: resumeId,
       };
-      console.log('Create - Application Data Before Save:', applicationData);
+      console.log('Create - Application Data Before Save:', JSON.stringify(applicationData, null, 2));
 
-      const application = await strapi.entityService.create('api::application.application', {
-        data: applicationData as any,
+      const application = (await strapi.entityService.create('api::application.application', {
+        data: applicationData,
         populate: {
-          job: { fields: ['id', 'title', 'companyName', 'expiredAt'] },
+          job: { fields: ['id', 'title', 'companyName', 'expiredAt'], populate: { user: { fields: ['id'] } } },
           applicant: { fields: ['id', 'username', 'email'] },
           resume: { fields: ['id', 'url', 'name'] },
         },
-      }) as ApplicationEntity;
-      console.log('Create - Application Created:', application);
+      })) as unknown as ApplicationEntity;
+      console.log('Create - Application Created:', JSON.stringify(application, null, 2));
 
-      // Verify relation in database
-      const savedApplication = await strapi.entityService.findOne('api::application.application', application.id, {
+      const savedApplication = (await strapi.entityService.findOne('api::application.application', application.id, {
         populate: { job: { fields: ['id', 'title', 'companyName', 'expiredAt'] } },
-      });
-      console.log('Create - Saved Application with Job:', savedApplication);
+      })) as unknown as ApplicationEntity;
+      console.log('Create - Saved Application with Job:', JSON.stringify(savedApplication, null, 2));
+
+      if (!savedApplication.job) {
+        console.error('Create - Job relation not saved correctly for application ID:', application.id);
+        await strapi.entityService.update('api::application.application', application.id, {
+          data: { job: parsedJobId },
+        });
+        const repairedApplication = (await strapi.entityService.findOne('api::application.application', application.id, {
+          populate: { job: { fields: ['id', 'title', 'companyName', 'expiredAt'] } },
+        })) as unknown as ApplicationEntity;
+        console.log('Create - Repaired Application:', JSON.stringify(repairedApplication, null, 2));
+
+        const rawApplication = await strapi.db.query('api::application.application').findOne({
+          where: { id: application.id },
+          populate: { job: true },
+        });
+        console.log('Create - Raw Database Entry:', JSON.stringify(rawApplication, null, 2));
+
+        if (!repairedApplication.job) {
+          console.error('Create - Repair failed. Job ID in database:', rawApplication?.job?.id);
+        }
+        return { data: repairedApplication };
+      }
 
       return { data: application };
     } catch (err) {
@@ -593,45 +632,120 @@ export default factories.createCoreController('api::application.application', ({
     }
   },
 
-  async find(ctx: StrapiContext) {
+  async find(ctx: StrapiContext): Promise<any> {
     try {
       const { user } = ctx.state;
       if (!user) return ctx.unauthorized('You must be logged in to view applications');
 
-      const filters = user.role.name === 'JobSeeker'
-        ? { applicant: { id: user.id } }
-        : user.role.name === 'Employer'
-        ? { job: { user: { id: user.id } } }
-        : {};
+      const userRoleLower = user.role.name.toLowerCase();
+      const filters: Record<string, any> =
+        userRoleLower === 'jobseeker' || userRoleLower === 'job seeker'
+          ? { applicant: { id: user.id } }
+          : userRoleLower === 'employer'
+          ? { job: { user: { id: user.id } } }
+          : {};
 
-      console.log('Find - Filters:', filters);
+      console.log('Find - Filters:', JSON.stringify(filters, null, 2));
 
-      const populateFields: {
-        job: {
-          fields: ('id' | 'title' | 'companyName' | 'expiredAt')[];
-          populate: { user: { fields: ('id')[] } };
-        };
-        applicant: { fields: ('id' | 'username' | 'email')[] };
-        resume: { fields: ('id' | 'url' | 'name')[] };
-      } = {
-        job: {
-          fields: ['id', 'title', 'companyName', 'expiredAt'], // Added 'id' explicitly
-          populate: { user: { fields: ['id'] } },
-        },
+      // Simplify population to test basic relation
+      const populateFields = {
+        job: true, // Test with minimal population first
         applicant: { fields: ['id', 'username', 'email'] },
         resume: { fields: ['id', 'url', 'name'] },
       };
 
-      const applications = await strapi.entityService.findMany('api::application.application', {
-        populate: populateFields,
+      const applications = (await strapi.entityService.findMany('api::application.application', {
+        populate: populateFields as any,
         filters,
-      }) as ApplicationEntity[];
+      })) as unknown as ApplicationEntity[];
+      console.log('Find - Initial Fetch with job: true:', JSON.stringify(applications, null, 2));
 
-      console.log('Find - Applications Fetched:', applications);
+      // Fetch raw database entries and manually populate job if null
+      for (const app of applications) {
+        if (!app.job) {
+          console.warn(`Find - Application ID ${app.id} has null job after initial fetch`);
+          const rawApp = await strapi.db.query('api::application.application').findOne({
+            where: { id: app.id },
+            populate: { job: true },
+          });
+          console.log(`Find - Raw Database Entry for ID ${app.id}:`, JSON.stringify(rawApp, null, 2));
+
+          if (rawApp?.job?.id) {
+            const jobData = (await strapi.entityService.findOne('api::job.job', rawApp.job.id, {
+              fields: ['id', 'title', 'companyName', 'expiredAt'],
+              populate: { user: { fields: ['id'] } },
+            })) as JobEntity | null;
+            console.log(`Find - Manually Fetched Job for ID ${app.id}:`, JSON.stringify(jobData, null, 2));
+            if (jobData) {
+              app.job = jobData;
+            } else {
+              console.error(`Find - Job ID ${rawApp.job.id} not found in jobs table`);
+            }
+          } else {
+            console.error(`Find - No job ID found in database for application ID ${app.id}`);
+          }
+        }
+      }
+
+      console.log('Find - Final Applications with Manual Job Fetch:', JSON.stringify(applications, null, 2));
       return { data: applications };
     } catch (err) {
       console.error('Find - Error:', err);
       return ctx.internalServerError('An error occurred while fetching applications');
+    }
+  },
+
+  async delete(ctx: StrapiContext): Promise<any> {
+    try {
+      const { id: idStr } = ctx.params;
+      const { user } = ctx.state;
+      console.log(`Delete - Attempting to delete application ID: ${idStr}`);
+
+      if (!user) return ctx.unauthorized('You must be logged in to delete applications');
+      if (!idStr) return ctx.badRequest('Application ID is required');
+
+      const id = parseInt(idStr, 10);
+      if (isNaN(id)) return ctx.badRequest('Invalid application ID');
+
+      const application = (await strapi.entityService.findOne('api::application.application', id, {
+        populate: {
+          job: { populate: { user: { fields: ['id'] } } },
+          applicant: { fields: ['id'] },
+        } as any,
+      })) as unknown as ApplicationEntity;
+      console.log('Delete - Fetched application:', JSON.stringify(application, null, 2));
+
+      if (!application) return ctx.notFound('Application not found');
+
+      const userRole = user.role.name.toLowerCase();
+      const isJobSeeker = userRole === 'job seeker' || userRole === 'jobseeker';
+      const isEmployer = userRole === 'employer';
+      const isAdmin = userRole === 'admin' || userRole === 'super admin';
+
+      const applicantId = application.applicant?.id;
+      const jobUserId = application.job?.user?.id;
+      console.log('Delete - Permission check info:', { userRole, userId: user.id, applicantId, jobUserId });
+
+      const hasPermission =
+        isAdmin || (isJobSeeker && applicantId === user.id) || (isEmployer && jobUserId === user.id);
+
+      if (!hasPermission) {
+        console.warn('Delete - Permission denied');
+        return ctx.forbidden('You do not have permission to delete this application');
+      }
+
+      console.log('Delete - Permission granted. Proceeding with deletion.');
+      const deletedApplication = await strapi.entityService.delete('api::application.application', id);
+      console.log('Delete - Successfully deleted:', JSON.stringify(deletedApplication, null, 2));
+
+      return { data: { id: deletedApplication.id, message: 'Application deleted successfully' } };
+    } catch (err) {
+      console.error('Delete - Error:', err);
+      if (err instanceof Error) {
+        console.error('Delete - Error Stack:', err.stack);
+        return ctx.internalServerError(`An error occurred while deleting the application: ${err.message}`);
+      }
+      return ctx.internalServerError('An unknown error occurred while deleting the application');
     }
   },
 }));

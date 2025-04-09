@@ -156,7 +156,7 @@ const EmployerDashboard = () => {
         return;
       }
 
-      const response: Response = await fetch(`http://localhost:1337/api/job?populate=*&filters[user][id][$eq]=${user.id}`, {
+      const response: Response = await fetch(`http://localhost:1337/api/jobs?populate=*&filters[user][id][$eq]=${user.id}`, {
         headers: {
           Authorization: `Bearer ${jwt}`,
           "Content-Type": "application/json",
@@ -235,7 +235,7 @@ const EmployerDashboard = () => {
 
       const user = JSON.parse(userData);
       const response: Response = await fetch(
-        `http://localhost:1337/api/application?populate=*&filters[job][user][id][$eq]=${user.id}`,
+        `http://localhost:1337/api/applications?populate=*&filters[job][user][id][$eq]=${user.id}`,
         {
           headers: {
             Authorization: `Bearer ${jwt}`,
