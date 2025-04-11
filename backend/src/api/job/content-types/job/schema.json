@@ -8,7 +8,7 @@
     "description": "Job listings posted by employers"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false 
   },
   "attributes": {
     "title": {
@@ -21,8 +21,7 @@
       "configurable": false
     },
     "requirements": {
-      "type": "text",
-      "required": true
+      "type": "text" 
     },
     "salary": {
       "type": "integer",
@@ -58,8 +57,7 @@
       "required": true
     },
     "industry": {
-      "type": "string",
-      "required": true
+      "type": "string" 
     },
     "expiredAt": {
       "type": "date",
@@ -82,6 +80,10 @@
       "relation": "manyToOne",
       "target": "api::employer.employer",
       "inversedBy": "jobs"
+    },
+    "requestId": {
+      "type": "string",
+      "unique": true
     }
   }
 }

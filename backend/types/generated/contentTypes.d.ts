@@ -491,7 +491,7 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
     singularName: 'job';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     applications: Schema.Attribute.Relation<
@@ -509,7 +509,7 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Required;
     expiredAt: Schema.Attribute.Date & Schema.Attribute.Required;
-    industry: Schema.Attribute.String & Schema.Attribute.Required;
+    industry: Schema.Attribute.String;
     jobType: Schema.Attribute.Enumeration<
       ['full-time', 'part-time', 'contract', 'internship']
     > &
@@ -519,7 +519,8 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     location: Schema.Attribute.String & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
-    requirements: Schema.Attribute.Text & Schema.Attribute.Required;
+    requestId: Schema.Attribute.String & Schema.Attribute.Unique;
+    requirements: Schema.Attribute.Text;
     salary: Schema.Attribute.Integer & Schema.Attribute.Required;
     title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
