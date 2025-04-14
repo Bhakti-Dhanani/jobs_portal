@@ -17,7 +17,6 @@
   "dependencies": {
     "@strapi/plugin-cloud": "5.12.3",
     "@strapi/plugin-users-permissions": "5.12.3",
-    "@strapi/strapi": "5.12.3",
     "bcryptjs": "^3.0.2",
     "pg": "8.8.0",
     "react": "^18.0.0",
@@ -26,10 +25,13 @@
     "styled-components": "^6.0.0"
   },
   "devDependencies": {
+    "@strapi/strapi": "^5.12.3",
+    "@types/koa": "^2.15.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "typescript": "^5"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.0.0 <=22.x.x",

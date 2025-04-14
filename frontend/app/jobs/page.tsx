@@ -117,7 +117,7 @@ const JobsPage = () => {
     const user = localStorage.getItem("user");
     const role = localStorage.getItem("role");
     
-    if (!user || role !== "jobseeker") {
+    if (!user || role?.toLowerCase() !== "jobseeker") {
       router.push("/login?redirect=/jobs");
       return;
     }

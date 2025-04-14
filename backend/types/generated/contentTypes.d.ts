@@ -378,18 +378,23 @@ export interface ApiApplicationApplication extends Struct.CollectionTypeSchema {
     singularName: 'application';
   };
   options: {
-    draftAndPublish: false;
+    draftAndPublish: true;
   };
   attributes: {
-    coverLetter: Schema.Attribute.Text;
+    applicant: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    > &
+      Schema.Attribute.Required;
+    coverLetter: Schema.Attribute.Text &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 5000;
+      }>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    job: Schema.Attribute.Relation<'manyToOne', 'api::job.job'>;
-    jobseeker: Schema.Attribute.Relation<
-      'manyToOne',
-      'plugin::users-permissions.user'
-    >;
+    job: Schema.Attribute.Relation<'manyToOne', 'api::job.job'> &
+      Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -397,7 +402,13 @@ export interface ApiApplicationApplication extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
-    resume: Schema.Attribute.Media<'files'>;
+    resume: Schema.Attribute.Media<'files'> &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetPluginOptions<{
+        upload: {
+          maxSize: 5242880;
+        };
+      }>;
     status: Schema.Attribute.Enumeration<
       ['pending', 'reviewed', 'accepted', 'rejected']
     > &
@@ -480,7 +491,7 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
     singularName: 'job';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     applications: Schema.Attribute.Relation<
@@ -498,7 +509,7 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Required;
     expiredAt: Schema.Attribute.Date & Schema.Attribute.Required;
-    industry: Schema.Attribute.String & Schema.Attribute.Required;
+    industry: Schema.Attribute.String;
     jobType: Schema.Attribute.Enumeration<
       ['full-time', 'part-time', 'contract', 'internship']
     > &
@@ -508,7 +519,8 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     location: Schema.Attribute.String & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
-    requirements: Schema.Attribute.Text & Schema.Attribute.Required;
+    requestId: Schema.Attribute.String & Schema.Attribute.Unique;
+    requirements: Schema.Attribute.Text;
     salary: Schema.Attribute.Integer & Schema.Attribute.Required;
     title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;

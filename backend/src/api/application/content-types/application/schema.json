@@ -8,17 +8,13 @@
     "description": "Job applications submitted by jobseekers"
   },
   "options": {
-    "draftAndPublish": false
+    "draftAndPublish": true
   },
+  "pluginOptions": {},
   "attributes": {
     "status": {
       "type": "enumeration",
-      "enum": [
-        "pending",
-        "reviewed",
-        "accepted",
-        "rejected"
-      ],
+      "enum": ["pending", "reviewed", "accepted", "rejected"],
       "default": "pending",
       "required": true
     },
@@ -26,24 +22,30 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::job.job",
-      "inversedBy": "applications"
+      "inversedBy": "applications",
+      "required": true
     },
-    "jobseeker": {
+    "applicant": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "inversedBy": "applications"
+      "inversedBy": "applications",
+      "required": true
     },
     "coverLetter": {
-      "type": "text"
+      "type": "text",
+      "maxLength": 5000
     },
     "resume": {
       "type": "media",
       "multiple": false,
-      "required": false,
-      "allowedTypes": [
-        "files"
-      ]
+      "required": true,
+      "allowedTypes": ["files"],
+      "pluginOptions": {
+        "upload": {
+          "maxSize": 5242880
+        }
+      }
     }
   }
 }

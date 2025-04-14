@@ -4,7 +4,7 @@ export default {
     origin: ['http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
-    headers: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+    headers: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'Content-Length', 'Content-Disposition'],
     keepHeaderOnError: true,
   },
 }; 
