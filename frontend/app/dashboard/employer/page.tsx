@@ -515,6 +515,7 @@ const EmployerDashboard = () => {
       }
 
       const fetchUrl = `http://localhost:1337/api/applications?populate=*&filters[job][id][$eq]=${jobId}`;
+      // const fetchUrl = `http://localhost:1337/api/applications/job/${jobId}`;
       console.log(`fetchJobApplications - Fetch URL: ${fetchUrl}`);
 
       const fetchResponse: Response = await fetch(fetchUrl, {
